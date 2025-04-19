@@ -4,7 +4,6 @@ import torch.nn as nn
 
 import torch
 import torch.nn as nn
-from pytorch3d.transforms import quaternion_to_matrix
 
 class PoseLoss(nn.Module):
     """
@@ -51,15 +50,6 @@ class PoseLoss(nn.Module):
             # Distanza sui quaternioni: 1 - |q · q̂|
             dot_product = torch.abs(torch.sum(pred_quat * gt_quat, dim=-1))
             rot_loss = torch.mean(1 - dot_product)
-        else:  # geodesic
-            # Geodesic Loss: angolo tra matrici di rotazione
-            pred_rot = quaternion_to_matrix(pred_quat)  # [batch, 3, 3]
-            gt_rot = quaternion_to_matrix(gt_quat)      # [batch, 3, 3]
-            inner_product = torch.bmm(pred_rot.transpose(1, 2), gt_rot)  # [batch, 3, 3]
-            trace = torch.diagonal(inner_product, dim1=1, dim2=2).sum(dim=1)  # trace(R̂^T R)
-            cos_theta = (trace - 1) / 2
-            cos_theta = torch.clamp(cos_theta, -1, 1)
-            rot_loss = torch.mean(torch.acos(cos_theta))
         
         # Loss totale
         return self.w_t * trans_loss + self.w_r * rot_loss
