@@ -43,17 +43,74 @@ def rotation_matrix_to_quaternion(rotation):
 
 
 # Funzione di addestramento con salvataggio ad ogni epoca
-def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cuda', save_dir='checkpoints'):
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import yaml
+import multiprocessing
+import os
+from tqdm import tqdm  # Barra di progresso
+import numpy as np
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.models as models
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import numpy as np
+from scipy.spatial.transform import Rotation
+import os
+
+
+from ..model.model import PoseModel
+from ..model.loss import PoseLoss
+from ..data.dataset import LinemodDataset
+
+
+# Funzione per convertire matrice di rotazione in quaternione
+def rotation_matrix_to_quaternion(rotation):
+    """
+    Converte una matrice di rotazione 3x3 in quaternione (w, x, y, z).
+    Input: rotation (torch.Tensor, shape: [3, 3] o [batch, 3, 3])
+    Output: quaternione (torch.Tensor, shape: [4] o [batch, 4])
+    """
+    if rotation.dim() == 2:
+        rotation = rotation.unsqueeze(0)  # Aggiungi dimensione batch
+    r = Rotation.from_matrix(rotation.cpu().numpy())
+    quaternion = r.as_quat()  # Formato: [x, y, z, w]
+    quaternion = torch.tensor(quaternion, dtype=torch.float32)  # Converti in tensore
+    # Riordina in [w, x, y, z]
+    quaternion = quaternion[:, [3, 0, 1, 2]]
+    return quaternion.squeeze() if rotation.shape[0] == 1 else quaternion
+
+
+
+# Funzione di addestramento con salvataggio ad ogni epoca
+def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cuda', save_dir='checkpoints', checkpoint_path=None):
     model = model.to(device)
+    
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
 
     # Crea la directory per i checkpoint se non esiste
     os.makedirs(save_dir, exist_ok=True)
 
-    best_val_loss = float('inf')  # Per salvare il modello migliore (opzionale)
+    best_val_loss = float('inf')  # Per salvare il modello migliore
+    start_epoch = 0  # Epoca di partenza
+
+    # Carica il checkpoint se specificato
+    if checkpoint_path is not None and os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+        print(f'Caricato checkpoint da: {checkpoint_path}, ripresa dall\'epoca {start_epoch}')
+
     pose_loss = PoseLoss()
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         model.train()
         running_loss = 0.0
         for batch in tqdm(train_loader):
@@ -104,10 +161,20 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
             # Salva il modello migliore (opzionale)
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
-                torch.save(model.state_dict(), os.path.join(save_dir, 'pose_cnn_best.pth'))
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'best_val_loss': best_val_loss
+                }, os.path.join(save_dir, 'pose_cnn_best.pth'))
                 print(f'Salvato modello migliore con loss di validazione: {best_val_loss:.4f}')
 
         # Salva il modello per l'epoca corrente
         checkpoint_path = os.path.join(save_dir, f'pose_cnn_epoch_{epoch+1}.pth')
-        torch.save(model.state_dict(), checkpoint_path)
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_val_loss': best_val_loss
+        }, checkpoint_path)
         print(f'Salvato modello: {checkpoint_path}')
