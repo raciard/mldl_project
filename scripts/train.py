@@ -69,7 +69,7 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
             pred_trans, pred_rot = model(images, obj_ids)
 
             # Calcola la loss
-            loss = pose_loss.foward(pred_trans, pred_rot, gt_trans, gt_quat)
+            loss = pose_loss.forward(pred_trans, pred_rot, gt_trans, gt_quat)
 
             # Backward pass
             optimizer.zero_grad()
