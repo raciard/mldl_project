@@ -19,8 +19,9 @@ from scipy.spatial.transform import Rotation
 import os
 
 
-from model import PoseModel, PoseLoss
-from data import LinemodDataset
+from ..model.model import PoseModel
+from ..model.loss import PoseLoss
+from ..data.dataset import LinemodDataset
 
 
 # Funzione per convertire matrice di rotazione in quaternione
@@ -51,7 +52,7 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
     os.makedirs(save_dir, exist_ok=True)
 
     best_val_loss = float('inf')  # Per salvare il modello migliore (opzionale)
-
+    pose_loss = PoseLoss()
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
@@ -68,7 +69,7 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
             pred_trans, pred_rot = model(images, obj_ids)
 
             # Calcola la loss
-            loss = pose_loss(pred_trans, pred_rot, gt_trans, gt_quat)
+            loss = pose_loss.foward(pred_trans, pred_rot, gt_trans, gt_quat)
 
             # Backward pass
             optimizer.zero_grad()

@@ -7,7 +7,7 @@ import torchvision.models as models
 # Definizione del modello PoseCNN
 class PoseModel(nn.Module):
     def __init__(self, num_objects=15):
-        super(PoseCNN, self).__init__()
+        super(PoseModel, self).__init__()
 
         # Backbone: ResNet-18 pre-addestrata
         self.backbone = models.resnet18(pretrained=True)
