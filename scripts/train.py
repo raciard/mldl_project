@@ -56,7 +56,7 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        for batch in train_loader:
+        for batch in tqdm(train_loader):
             images = batch['cropped_img'].to(device)
             obj_ids = batch['obj_id'].long().to(device)
             gt_trans = batch['translation'].to(device)
@@ -86,7 +86,7 @@ def train_model(model, train_loader, val_loader=None, num_epochs=20, device='cud
         if val_loader:
             model.eval()
             with torch.no_grad():
-                for batch in val_loader:
+                for batch in tqdm(val_loader):
                     images = batch['cropped_img'].to(device)
                     obj_ids = batch['obj_id'].long().to(device)
                     gt_trans = batch['translation'].to(device)
