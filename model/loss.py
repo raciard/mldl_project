@@ -27,7 +27,7 @@ class PoseLoss(nn.Module):
             raise ValueError("rotation_loss_type deve essere 'quaternion' o 'geodesic'")
         
         # MSE per traslazione
-        self.mse_loss = nn.MSELoss(reduction='mean')
+       # self.mse_loss = nn.MSELoss(reduction='mean')
     
     def forward(self, pred_trans, pred_quat, gt_trans, gt_quat):
         """
@@ -43,7 +43,7 @@ class PoseLoss(nn.Module):
             torch.Tensor: Loss totale
         """
         # Loss traslazione (MSE)
-        trans_loss = self.mse_loss(pred_trans, gt_trans)
+        #trans_loss = self.mse_loss(pred_trans, gt_trans)
         
         # Loss rotazione
         if self.rotation_loss_type == "quaternion":
@@ -52,4 +52,4 @@ class PoseLoss(nn.Module):
             rot_loss = torch.mean(1 - dot_product)
         
         # Loss totale
-        return self.w_t * trans_loss + self.w_r * rot_loss
+        return rot_loss
