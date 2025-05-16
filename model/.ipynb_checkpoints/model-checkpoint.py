@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from torchvision.models import resnet18
+import numpy as np
 
 class PoseModel(nn.Module):
 

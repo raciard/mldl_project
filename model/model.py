@@ -2,53 +2,64 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from torchvision.models import resnet18
+import numpy as np
 
-
-# Definizione del modello PoseCNN
 class PoseModel(nn.Module):
+
     def __init__(self, num_objects=15):
-        super(PoseModel, self).__init__()
-
-        # Backbone: ResNet-18 pre-addestrata
-        self.backbone = models.resnet18(pretrained=True)
-        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])  # Rimuove FC layer
-
-        # Embedding per obj_id (opzionale)
-        self.num_objects = num_objects
-        self.obj_embedding = nn.Embedding(num_objects, 32)  # 32 dimensioni per oggetto
-
-        # Branca di traslazione: prevede (x, y, z)
-        self.translation_head = nn.Sequential(
-            nn.Linear(512 + 32, 256),  # 512 (ResNet) + 32 (embedding)
+        super().__init__()
+        # Usiamo ResNet18 come backbone invece di VGG per maggiore efficienza
+        self.backbone = resnet18(pretrained=True)
+        self.backbone.fc = nn.Identity()  # Rimuoviamo il fully connected finale
+        
+        # Testa per la predizione dei punti 2D (8 corners * 2 coordinate)
+        self.bbox_head = nn.Sequential(
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 3)  # Output: (x, y, z)
+            nn.Linear(256, 16)# 8 punti * 2 coordinate
         )
-
-        # Branca di rotazione: prevede quaternione (4 valori)
-        self.rotation_head = nn.Sequential(
-            nn.Linear(512 + 32, 256),
+        
+        # Testa per il classificatore di simmetria (4 range per oggetti approssimativamente simmetrici)
+        self.symmetry_head = nn.Sequential(
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 4),
-            nn.Tanh()  # Normalizza tra [-1, 1]
+            nn.Linear(256, num_objects * 4),
+            nn.Sigmoid()
         )
+        
+        # Cache per i modelli 3D
+        self.model_points_cache = {}
 
-    def forward(self, x, obj_id):
-        # Input: x (immagine, [batch, 3, 224, 224]), obj_id ([batch])
-        features = self.backbone(x)  # [batch, 512, 1, 1]
-        features = features.view(features.size(0), -1)  # [batch, 512]
+    def forward(self, x):
+        features = self.backbone(x)
+        bbox_pred = self.bbox_head(features)
+        symmetry_pred = self.symmetry_head(features)
+        return bbox_pred, symmetry_pred
 
-        # Embedding per obj_id
-        obj_embed = self.obj_embedding(obj_id)  # [batch, 32]
-        features = torch.cat([features, obj_embed], dim=1)  # [batch, 512 + 32]
-
-        # Previsione traslazione
-        translation = self.translation_head(features)  # [batch, 3]
-
-        # Previsione rotazione
-        rotation = self.rotation_head(features)  # [batch, 4]
-        rotation = F.normalize(rotation, p=2, dim=1)  # Normalizza il quaternione
-
-        return translation, rotation
-
+    def get_3d_bbox_points(self, obj_id, models_info):
+        """Ottiene i punti 3D del bounding box per un oggetto"""
+        if obj_id not in self.model_points_cache:
+            info = models_info[obj_id]
+            x_size = info['size_x']
+            y_size = info['size_y']
+            z_size = info['size_z']
+            
+            half_x = x_size / 2
+            half_y = y_size / 2
+            half_z = z_size / 2
+            
+            points_3d = np.array([
+                [-half_x, -half_y, -half_z],
+                [half_x, -half_y, -half_z],
+                [half_x, half_y, -half_z],
+                [-half_x, half_y, -half_z],
+                [-half_x, -half_y, half_z],
+                [half_x, -half_y, half_z],
+                [half_x, half_y, half_z],
+                [-half_x, half_y, half_z]
+            ], dtype=np.float32)
+            
+            self.model_points_cache[obj_id] = points_3d
+        
+        return self.model_points_cache[obj_id]

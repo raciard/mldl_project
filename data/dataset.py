@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 
 from model.model import PoseModel
 import cv2
+import json
 
 
 
@@ -50,6 +51,29 @@ class LinemodDataset(Dataset):
 
         # Carico i dati GT separatamente
         self.load_all_gt()
+    
+
+
+
+
+    def read_predicted_bb(self, folder_id, sample_id):
+        json_path = "datasets/yolo_annotations.json"
+
+
+        image_key = f"{folder_id}-{sample_id}"
+        with open(json_path, 'r') as f:
+            annotations = json.load(f)
+
+        if image_key not in annotations:
+            raise ValueError(f"Nessuna annotazione trovata per {image_key}")
+
+        converted_boxes = []
+        for ann in annotations[image_key]:
+
+            return ann['bbox']
+        return [0,0,0,0]
+
+
 
     def load_models_info(self):
         """Carica le informazioni sui modelli con caching manuale"""
@@ -173,6 +197,11 @@ class LinemodDataset(Dataset):
         img = self.load_image(img_path)
         
         translation, rotation, bbox, obj_id = self.load_6d_pose(folder_id, sample_id)
+
+        if self.split != "train":
+            predicted_bb = self.read_predicted_bb(folder_id, sample_id)
+        else:
+            predicted_bb = [0,0,0,0]
         
         # Proietta i punti 3D del bounding box
         if f"{folder_id}-{sample_id}" not in self.points2d_cache:
@@ -185,7 +214,7 @@ class LinemodDataset(Dataset):
         
         # Crop dell'immagine usando la bounding box con padding
         img_pil = transforms.ToPILImage()(img)
-        x_min, y_min, x_max, y_max = map(int, bbox)
+        x_min, y_min, x_max, y_max = map(int, bbox if self.split == "train" else predicted_bb)
         
         # Aggiungi padding del 20%
         pad_x = int(0.2 * (x_max - x_min))
@@ -206,6 +235,7 @@ class LinemodDataset(Dataset):
             "obj_id": torch.tensor(obj_id - 1),  # Converti in indice 0-based
             "original_img": self.load_normal_image(img_path),
             "bbox": torch.tensor(bbox),
+            "predicted_bb": torch.tensor(predicted_bb),
             "rotation": torch.tensor(rotation),
             "translation": torch.tensor(translation),
             "camera_matrix": torch.tensor(camera_matrix),
