@@ -7,13 +7,17 @@ import numpy as np
 
 
 class PoseModel(nn.Module):
-    def __init__(self, num_objects=15, num_keypoints=20):
+    def __init__(self, num_objects=15, num_keypoints=40):
         super().__init__()
-        # Usiamo ResNet18 come backbone invece di VGG per maggiore efficienza
         self.backbone = resnet18(pretrained=True)
-        self.backbone.fc = nn.Identity()  # Rimuoviamo il fully connected finale
 
-        # Testa per la predizione dei punti 2D (8 corners * 2 coordinate)
+        # Modifica il primo conv per accettare 4 canali invece di 3
+        self.backbone.conv1 = nn.Conv2d(
+            4, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+
+        self.backbone.fc = nn.Identity()  # Rimuove fully connected finale
+
         self.bbox_head = nn.Sequential(
             nn.Linear(512, 512),
             nn.ReLU(),
@@ -26,7 +30,11 @@ class PoseModel(nn.Module):
             nn.Linear(256, num_keypoints * 2),
         )
 
-    def forward(self, x):
-        features = self.backbone(x)
-        bbox_pred = self.bbox_head(features)
+    def forward(self, x, depth):
+        """
+        x: tensor [B, 4, H, W], RGB + depth concatenati sui canali
+        """
+        rgbd_tensor = torch.cat([x, depth], dim=1)
+        features = self.backbone(rgbd_tensor)  # [B, 512]
+        bbox_pred = self.bbox_head(features)  # [B, num_keypoints*2]
         return bbox_pred, ""

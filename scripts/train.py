@@ -61,11 +61,12 @@ def train_model(batch_size=128, num_epochs=10):
 
         for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} - Train"):
             images = batch["rgb"].cuda()
+            depths = batch["depth"].cuda()
             targets = batch["keypoints"].cuda()
 
-            pred_points, _ = model(images)
+            pred_points, _ = model(images, depths)
             batch_size = images.size(0)
-            selected_preds = torch.zeros(batch_size, 40).cuda()
+            selected_preds = torch.zeros(batch_size, 80).cuda()
             for i in range(batch_size):
                 selected_preds[i] = pred_points[i]
 
@@ -81,11 +82,12 @@ def train_model(batch_size=128, num_epochs=10):
         with torch.no_grad():
             for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} - Val"):
                 images = batch["rgb"].cuda()
+                depths = batch["depth"].cuda()
                 targets = batch["keypoints"].cuda()
 
-                pred_points, _ = model(images)
+                pred_points, _ = model(images, depths)
                 batch_size = images.size(0)
-                selected_preds = torch.zeros(batch_size, 40).cuda()
+                selected_preds = torch.zeros(batch_size, 80).cuda()
                 for i in range(batch_size):
                     selected_preds[i] = pred_points[i]
 

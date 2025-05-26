@@ -14,7 +14,6 @@ import fpsample
 
 # added the following import
 from sklearn.model_selection import train_test_split
-from model.model import PoseModel
 import cv2
 import json
 
@@ -112,8 +111,15 @@ class LinemodDataset(Dataset):
         points_3d = self.sample_points_fps(
             obj_id, num_points=num_keypoints
         )  #  usa FPS keypoints
+
+        points_3d = points_3d.astype(np.float64)
+        rotation = rotation.astype(np.float64)
+        translation = translation.astype(np.float64)
+        camera_matrix = camera_matrix.astype(np.float64)
+
+        dist_coeffs = np.zeros((4, 1), dtype=np.float64)
         points_2d, _ = cv2.projectPoints(
-            points_3d, rotation, translation, camera_matrix, None
+            points_3d, rotation, translation, camera_matrix, dist_coeffs
         )
         return points_2d.squeeze()
 
@@ -244,6 +250,12 @@ class LinemodDataset(Dataset):
         img = Image.open(img_path).convert("RGB")
         return self.transform(img)
 
+    def load_depth(self, depth_path):
+        depth = Image.open(depth_path)
+        depth_np = np.array(depth, dtype=np.float32)
+        depth_np /= 1000.0  # Converti in metri
+        return torch.from_numpy(np.array(depth_np, dtype=np.float32)).unsqueeze(0)
+
     def load_normal_image(self, img_path):
         img = Image.open(img_path).convert("RGB")
         return transforms.ToTensor()(img)
@@ -274,8 +286,15 @@ class LinemodDataset(Dataset):
     def get_3d_bbox_projection(self, obj_id, rotation, translation, camera_matrix):
         """Proietta i punti 3D del bounding box nell'immagine 2D"""
         points_3d = self.get_3d_bbox_points(obj_id, self.models_info)
+
+        points_3d = points_3d.astype(np.float64)
+        rotation = rotation.astype(np.float64)
+        translation = translation.astype(np.float64)
+        camera_matrix = camera_matrix.astype(np.float64)
+
+        dist_coeffs = np.zeros((4, 1), dtype=np.float64)
         points_2d, _ = cv2.projectPoints(
-            points_3d, rotation, translation, camera_matrix, None
+            points_3d, rotation, translation, camera_matrix, dist_coeffs
         )
         return points_2d.squeeze()
 
@@ -300,7 +319,13 @@ class LinemodDataset(Dataset):
         img_path = os.path.join(
             self.dataset_root, "data", f"{folder_id:02d}", f"rgb/{sample_id:04d}.png"
         )
+
+        depth_path = os.path.join(
+            self.dataset_root, "data", f"{folder_id:02d}", f"depth/{sample_id:04d}.png"
+        )
+
         img = self.load_image(img_path)
+        depth = self.load_depth(depth_path)
 
         translation, rotation, bbox, obj_id = self.load_6d_pose(folder_id, sample_id)
 
@@ -322,6 +347,7 @@ class LinemodDataset(Dataset):
 
         # Crop dell'immagine usando la bounding box con padding
         img_pil = transforms.ToPILImage()(img)
+        depth_pil = transforms.ToPILImage()(depth)
         x_min, y_min, x_max, y_max = map(
             int, bbox if self.split == "train" else predicted_bb
         )
@@ -339,23 +365,29 @@ class LinemodDataset(Dataset):
         cropped_resized = transforms.Resize((224, 224))(cropped)
         cropped_tensor = self.transform(cropped_resized)
 
+        cropped_depth = depth_pil.crop((x_min, y_min, x_max, y_max))
+        cropped_depth_resized = transforms.Resize((224, 224))(cropped_depth)
+        cropped_depth_tensor = transforms.ToTensor()(cropped_depth_resized)
+
         keypoints_fps = self.normalize_points(
             self.get_3d_keypoints_projection(
-                obj_id, rotation, translation, camera_matrix, num_keypoints=20
+                obj_id, rotation, translation, camera_matrix, num_keypoints=40
             ),
             bbox,
         )
 
         return {
             "rgb": cropped_tensor,
+            "depth": cropped_depth_tensor,
             "points_2d": torch.tensor(points_norm),
             "obj_id": torch.tensor(obj_id - 1),  # Converti in indice 0-based
             "original_img": self.load_normal_image(img_path),
+            "original_depth": self.load_depth(depth_path),
             "bbox": torch.tensor(bbox),
             "predicted_bb": torch.tensor(predicted_bb),
             "rotation": torch.tensor(rotation),
             "translation": torch.tensor(translation),
             "camera_matrix": torch.tensor(camera_matrix),
             "keypoints": torch.tensor(keypoints_fps),
-            "num_keypoints": 20,
+            "num_keypoints": 40,
         }
