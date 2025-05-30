@@ -11,11 +11,7 @@ class PoseModel(nn.Module):
         super().__init__()
         self.backbone = resnet18(pretrained=True)
 
-        # Modifica il primo conv per accettare 4 canali invece di 3
-        self.backbone.conv1 = nn.Conv2d(
-            4, 64, kernel_size=7, stride=2, padding=3, bias=False
-        )
-
+       
         self.backbone.fc = nn.Identity()  # Rimuove fully connected finale
 
         self.bbox_head = nn.Sequential(
@@ -34,7 +30,6 @@ class PoseModel(nn.Module):
         """
         x: tensor [B, 4, H, W], RGB + depth concatenati sui canali
         """
-        rgbd_tensor = torch.cat([x, depth], dim=1)
-        features = self.backbone(rgbd_tensor)  # [B, 512]
+        features = self.backbone(x)  # [B, 512]
         bbox_pred = self.bbox_head(features)  # [B, num_keypoints*2]
         return bbox_pred, ""
