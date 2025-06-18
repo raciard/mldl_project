@@ -26,9 +26,9 @@ class PoseModel(nn.Module):
             nn.Linear(256, num_keypoints * 2),
         )
 
-    def forward(self, x, depth):
+    def forward(self, x):
         """
-        x: tensor [B, 4, H, W], RGB + depth concatenati sui canali
+        x: tensor [B, 3, H, W], RGB
         """
         features = self.backbone(x)  # [B, 512]
         bbox_pred = self.bbox_head(features)  # [B, num_keypoints*2]

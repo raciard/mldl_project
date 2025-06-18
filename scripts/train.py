@@ -64,7 +64,7 @@ def train_model(batch_size=128, num_epochs=10):
             depths = batch["depth"].cuda()
             targets = batch["keypoints"].cuda()
 
-            pred_points, _ = model(images, depths)
+            pred_points, _ = model(images)
             batch_size = images.size(0)
             selected_preds = torch.zeros(batch_size, 80).cuda()
             for i in range(batch_size):
@@ -85,7 +85,7 @@ def train_model(batch_size=128, num_epochs=10):
                 depths = batch["depth"].cuda()
                 targets = batch["keypoints"].cuda()
 
-                pred_points, _ = model(images, depths)
+                pred_points, _ = model(images)
                 batch_size = images.size(0)
                 selected_preds = torch.zeros(batch_size, 80).cuda()
                 for i in range(batch_size):

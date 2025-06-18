@@ -11,7 +11,7 @@ def estimate_pose(model, dataset, idx):
     depth = sample["depth"].unsqueeze(0).cuda()
 
     with torch.no_grad():
-        pred_points_norm, _ = model(img, depth)
+        pred_points_norm, _ = model(img)
 
     pred_points_norm = (
         pred_points_norm.cpu().numpy().reshape(sample["num_keypoints"], 2)
