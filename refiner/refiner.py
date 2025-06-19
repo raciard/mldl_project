@@ -94,6 +94,7 @@ class PoseRefiner:
         visualize_every=1,
         min_delta=1e-5,
         patience=30,
+        verbose=False,
     ):
         # Converti le pose iniziali in parametri ottimizzabili
         # Usiamo parametri angolo-assale (rodrigues) per la rotazione per evitare problemi di ortogonalità
@@ -125,7 +126,7 @@ class PoseRefiner:
 
             loss_history.append(loss.item())
 
-            if visualize_every and i % visualize_every == 0:
+            if verbose and visualize_every and i % visualize_every == 0:
                 print(f"[{i}/{num_iters}] Loss: {loss.item():.6f}")
 
             current_loss = loss.item()
@@ -137,9 +138,10 @@ class PoseRefiner:
             else:
                 patience_counter += 1
                 if patience_counter >= patience:
-                    print(
-                        f"Early stopping at iteration {i}, best loss: {best_loss:.6f}"
-                    )
+                    if verbose:
+                        print(
+                            f"Early stopping at iteration {i}, best loss: {best_loss:.6f}"
+                        )
                     break
         # Final pose
         with torch.no_grad():
