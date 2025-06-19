@@ -1,0 +1,5 @@
+opencv-python>=4.5.5
+pyyaml>=6.0
+open3d>=0.17.0
+fpsample>=0.2.0
+trimesh>=4.0.0
