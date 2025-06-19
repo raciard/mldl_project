@@ -3,3 +3,6 @@ checkpoints
 .ipynb-checkpoints
 __pycache__
 .venv
+yolo11n.pt
+lmdb
+lmdb_val

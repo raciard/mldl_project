@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import yaml
 import multiprocessing
 import os
-from tqdm.notebook import tqdm  # Barra di progresso
+from tqdm import tqdm  # Barra di progresso
 import numpy as np
 
 
@@ -22,7 +22,7 @@ from model.model import PoseModel
 from data.dataset import LinemodDataset
 
 
-def train_model(batch_size=128, num_epochs=10, use_lmdb=False):
+def train_model(batch_size=128, num_epochs=10):
     # Configurazione
     dataset_root = "datasets/Linemod_preprocessed/"
     learning_rate = 0.001
@@ -30,14 +30,8 @@ def train_model(batch_size=128, num_epochs=10, use_lmdb=False):
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Dataset e DataLoader
-    if use_lmdb:
-        from data.extra.lmdbDataset import LMDBComplexDataset
-
-        train_dataset = LMDBComplexDataset("lmdb")
-        val_dataset = LMDBComplexDataset("lmdb_val")
-    else:
-        train_dataset = LinemodDataset(dataset_root, split="train")
-        val_dataset = LinemodDataset(dataset_root, split="test")
+    train_dataset = LinemodDataset(dataset_root, split="train")
+    val_dataset = LinemodDataset(dataset_root, split="test")
 
     train_loader = DataLoader(
         train_dataset,
@@ -68,11 +62,11 @@ def train_model(batch_size=128, num_epochs=10, use_lmdb=False):
         for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} - Train"):
             images = batch["rgb"].cuda()
             depths = batch["depth"].cuda()
-            targets = batch["keypoints"].cuda()
+            targets = batch["points_2d"].cuda()
 
-            pred_points, _ = model(images)
+            pred_points, _ = model(images, depths)
             batch_size = images.size(0)
-            selected_preds = torch.zeros(batch_size, 80).cuda()
+            selected_preds = torch.zeros(batch_size, 16).cuda()
             for i in range(batch_size):
                 selected_preds[i] = pred_points[i]
 
@@ -89,11 +83,11 @@ def train_model(batch_size=128, num_epochs=10, use_lmdb=False):
             for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} - Val"):
                 images = batch["rgb"].cuda()
                 depths = batch["depth"].cuda()
-                targets = batch["keypoints"].cuda()
+                targets = batch["points_2d"].cuda()
 
-                pred_points, _ = model(images)
+                pred_points, _ = model(images, depths)
                 batch_size = images.size(0)
-                selected_preds = torch.zeros(batch_size, 80).cuda()
+                selected_preds = torch.zeros(batch_size, 16).cuda()
                 for i in range(batch_size):
                     selected_preds[i] = pred_points[i]
 
