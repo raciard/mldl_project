@@ -197,8 +197,6 @@ class LinemodDataset(Dataset):
                         if f.endswith(".png")
                     ]
                 )
-                if folder_id == 2:
-                    print(f"folder_id: {folder_id}, sample_ids: {sample_ids}")
                 samples.extend([(folder_id, sid) for sid in sample_ids])
         return samples
 
